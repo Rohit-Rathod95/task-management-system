@@ -6,10 +6,11 @@ const {
 } = require("../utils/jwt.util");
 
 // Cookie configuration
+const isProduction = process.env.NODE_ENV === "production";
 const cookieOptions = (maxAge) => ({
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
+    secure: isProduction,
+    sameSite: isProduction ? "none" : "strict", // "none" required for cross-domain (Vercel → Render)
     maxAge,
 });
 
