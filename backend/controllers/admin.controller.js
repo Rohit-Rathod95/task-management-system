@@ -130,4 +130,54 @@ const deleteAnyTask = async (req, res, next) => {
     }
 };
 
-module.exports = { getAllUsers, getAllTasks, deleteAnyTask };
+/**
+ * @route   PATCH /api/admin/users/:id/role
+ * @desc    Update a user's role (ADMIN only)
+ */
+const updateUserRole = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { role } = req.body;
+
+        // Validate role
+        const validRoles = ["USER", "ADMIN"];
+        if (!role || !validRoles.includes(role)) {
+            return res.status(400).json({
+                success: false,
+                message: `Role must be one of: ${validRoles.join(", ")}`,
+            });
+        }
+
+        // Prevent admin from changing their own role
+        if (id === req.user.id) {
+            return res.status(400).json({
+                success: false,
+                message: "You cannot change your own role",
+            });
+        }
+
+        const { rows } = await pool.query(
+            `UPDATE users SET role = $1
+             WHERE id = $2
+             RETURNING id, name, email, role`,
+            [role, id]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found",
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: `User role updated to ${role}`,
+            data: { user: rows[0] },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+module.exports = { getAllUsers, getAllTasks, deleteAnyTask, updateUserRole };
