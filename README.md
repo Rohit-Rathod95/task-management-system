@@ -497,6 +497,19 @@ curl "http://localhost:5000/api/tasks?page=1&limit=5&status=pending" \
 
 ---
 
+## 📸 Screenshots
+
+### 🔐 Login Page
+![Login Page](./screenshots/login.png)
+
+### 📋 Dashboard
+![Dashboard](./screenshots/dashboard.png)
+
+### 👑 Admin View
+![Admin View](./screenshots/admin.png) 
+
+---
+
 ## 📄 License
 
 ISC
