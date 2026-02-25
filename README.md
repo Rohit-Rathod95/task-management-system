@@ -1,6 +1,60 @@
 # 📋 Task Management System
 
-A production-ready full-stack task management application built with **Node.js + Express** backend and **Next.js** frontend, featuring JWT authentication via HTTP-only cookies, role-based access control, AES-256 encryption, and PostgreSQL (Supabase).
+A production-ready, security-first task management system with **JWT authentication** (HTTP-only cookies with refresh token rotation), **AES-256-CBC encryption at rest**, **role-based access control**, and a modular **REST API** — deployed and publicly accessible.
+
+Built with Node.js + Express, Next.js (App Router), and PostgreSQL (Supabase).
+
+---
+
+## 🌍 Live Deployment
+
+| Service | URL |
+|---------|-----|
+| **Frontend** | [task-management-system-bryh.vercel.app](https://task-management-system-bryh.vercel.app) |
+| **Backend API** | [task-management-system-4-d9dt.onrender.com](https://task-management-system-4-d9dt.onrender.com) |
+| **Health Check** | [/api/health](https://task-management-system-4-d9dt.onrender.com/api/health) |
+
+> **Note:** Backend is hosted on Render's free tier — first request may take ~30s for cold start.
+
+---
+
+## 📌 Executive Summary
+
+This system implements a **defense-in-depth security architecture** across the full stack:
+
+- **Authentication** — Short-lived access tokens (15m) + refresh token rotation with reuse detection. Refresh tokens are bcrypt-hashed before storage — a database breach does not expose usable tokens.
+- **Encryption** — Task descriptions are AES-256-CBC encrypted at rest. A database leak reveals hex ciphertext, not plaintext.
+- **Access Control** — Middleware-enforced RBAC with `USER` and `ADMIN` roles, extensible without code changes.
+- **Infrastructure** — HTTP-only cookies (no localStorage), parameterized queries (no ORM), centralized error handling, rate limiting, and helmet security headers.
+
+---
+
+## 🏗️ Architecture Overview
+
+```
+Client (Next.js)
+  │
+  │  Axios (withCredentials: true)
+  ▼
+Express API (Node.js)
+  │
+  ├─ helmet()           → Security headers
+  ├─ cors()             → Origin validation
+  ├─ cookieParser()     → Extract JWT from cookies
+  ├─ authenticate()     → Verify access token
+  ├─ authorizeRoles()   → RBAC enforcement
+  │
+  ▼
+Controllers
+  │
+  ├─ encrypt/decrypt    → AES-256-CBC (application layer)
+  ├─ bcrypt             → Password + token hashing
+  │
+  ▼
+PostgreSQL (Supabase)   → Parameterized queries only ($1, $2, ...)
+```
+
+**Separation of Concerns:** Routes define endpoints, middleware handles cross-cutting concerns (auth, validation, errors), controllers contain business logic, and utils provide reusable cryptographic functions. No business logic in routes, no DB queries in middleware.
 
 ---
 
@@ -25,16 +79,16 @@ A production-ready full-stack task management application built with **Node.js +
 task-management-system/
 ├── backend/
 │   ├── config/
-│   │   └── db.js                    # PostgreSQL connection pool
+│   │   └── db.js                    # PostgreSQL connection pool (SSL)
 │   ├── controllers/
 │   │   ├── auth.controller.js       # Register, Login, Logout, Refresh, GetMe
 │   │   ├── task.controller.js       # CRUD with encryption + pagination
 │   │   └── admin.controller.js      # Admin: users, all tasks, role mgmt
 │   ├── database/
-│   │   └── schema.sql               # Complete DB schema
+│   │   └── schema.sql               # Complete DB schema (3 tables)
 │   ├── middleware/
 │   │   ├── auth.middleware.js        # JWT verification from cookies
-│   │   ├── role.middleware.js        # RBAC role checking
+│   │   ├── role.middleware.js        # RBAC — role-based route gating
 │   │   └── error.middleware.js       # Centralized error handler
 │   ├── routes/
 │   │   ├── auth.routes.js            # Auth endpoints + rate limiting
@@ -45,256 +99,289 @@ task-management-system/
 │   │   └── encryption.js             # AES-256-CBC encrypt/decrypt
 │   ├── app.js                        # Express app configuration
 │   ├── server.js                     # Entry point
-│   ├── .env                          # Environment variables
 │   └── package.json
 │
-├── frontend/
-│   └── my-app/
-│       ├── app/
-│       │   ├── layout.tsx            # Root layout with AuthProvider
-│       │   ├── page.tsx              # Home (redirects based on auth)
-│       │   ├── login/page.tsx        # Login page
-│       │   ├── register/page.tsx     # Registration page
-│       │   └── dashboard/page.tsx    # Dashboard with task management
-│       ├── components/
-│       │   ├── ProtectedRoute.tsx    # Client-side auth guard
-│       │   ├── TaskCard.tsx          # User task card
-│       │   ├── AdminTaskCard.tsx     # Admin task card (shows owner)
-│       │   ├── TaskModal.tsx         # Create/Edit task modal
-│       │   ├── DeleteDialog.tsx      # Delete confirmation dialog
-│       │   ├── Pagination.tsx        # Pagination controls
-│       │   ├── StatusBadge.tsx       # Color-coded status badge
-│       │   └── Toast.tsx             # Toast notifications
-│       ├── context/
-│       │   └── AuthContext.tsx        # Auth state management
-│       ├── lib/
-│       │   └── api.ts                # Axios instance (withCredentials)
-│       ├── services/
-│       │   └── taskService.ts        # Task + Admin API calls
-│       └── .env.local                # Frontend env variables
+├── frontend/my-app/
+│   ├── app/
+│   │   ├── layout.tsx                # Root layout with AuthProvider
+│   │   ├── page.tsx                  # Home — redirects by auth state
+│   │   ├── login/page.tsx            # Login page
+│   │   ├── register/page.tsx         # Registration page
+│   │   └── dashboard/page.tsx        # Task dashboard + admin view
+│   ├── components/
+│   │   ├── ProtectedRoute.tsx        # Client-side auth guard
+│   │   ├── TaskCard.tsx              # User task card
+│   │   ├── AdminTaskCard.tsx         # Admin card (shows owner info)
+│   │   ├── TaskModal.tsx             # Create/Edit modal
+│   │   ├── DeleteDialog.tsx          # Delete confirmation
+│   │   ├── Pagination.tsx            # Page controls
+│   │   ├── StatusBadge.tsx           # Color-coded status
+│   │   └── Toast.tsx                 # Success/error notifications
+│   ├── context/AuthContext.tsx        # Auth state management
+│   ├── lib/api.ts                    # Axios (withCredentials: true)
+│   └── services/taskService.ts       # Task + Admin API calls
 │
 └── README.md
 ```
 
 ---
 
-## 🔐 Authentication System
+## 🔐 Authentication Lifecycle
 
-### How It Works
+### Login → Token Issuance
 
 ```
-User Login → Backend validates credentials
-           → Generates Access Token (JWT, 15min)
-           → Generates Refresh Token (JWT, 7 days)
-           → Hashes refresh token with bcrypt → stores in DB
-           → Sets both tokens as HTTP-only cookies
-           → Frontend never sees or stores JWT
+POST /api/auth/login
+  │
+  ├─ Validate email + password (bcrypt.compare)
+  ├─ Generate Access Token (JWT, 15min expiry)
+  ├─ Generate Refresh Token (JWT, 7 days expiry)
+  ├─ Hash refresh token (bcrypt) → store in DB
+  ├─ Set both as HTTP-only, Secure, SameSite cookies
+  │
+  └─ Response: { user: { id, name, email, role } }
+      ↑ No token in response body — cookies only
 ```
 
 ### Token Strategy
 
 | Token | Expiry | Storage | Purpose |
 |-------|--------|---------|---------|
-| Access Token | 15 minutes | HTTP-only cookie | API authorization |
-| Refresh Token | 7 days | HTTP-only cookie + hashed in DB | Silent re-authentication |
-
-### Cookie Configuration
-
-```javascript
-{
-    httpOnly: true,                              // No JavaScript access
-    secure: process.env.NODE_ENV === "production", // HTTPS only in prod
-    sameSite: "strict",                          // CSRF protection
-    maxAge: <token-specific>
-}
-```
+| Access Token | 15 min | HTTP-only cookie | API authorization |
+| Refresh Token | 7 days | HTTP-only cookie + bcrypt hash in DB | Silent re-authentication |
 
 ### Refresh Token Rotation
 
-On every token refresh:
+On every `/api/auth/refresh` call:
+
 1. Verify the old refresh token's JWT signature
-2. Find the matching hashed token in the database (`bcrypt.compare`)
-3. **Revoke the old token** (set `revoked = TRUE`)
+2. Find the matching hashed token in DB (`bcrypt.compare`)
+3. **Revoke the old token** (`revoked = TRUE`)
 4. Generate a **new token pair** (access + refresh)
 5. Store the new hashed refresh token in DB
 6. Set new cookies
 
-**Token Reuse Detection:** If a revoked token is replayed, ALL refresh tokens for that user are revoked — locking out the attacker.
+### Token Reuse Detection
+
+If a revoked token is replayed → ALL refresh tokens for that user are revoked, invalidating every active session. This locks out the attacker even if they intercepted a valid token.
 
 ### Why Hash Refresh Tokens?
 
-If the database is compromised, attackers see hashed tokens they cannot use. Raw tokens are never stored — the same principle as password hashing.
+Raw tokens are never stored. If the database is compromised, attackers see bcrypt hashes they cannot reverse — the same principle as password hashing. This is a critical layer that most implementations skip.
+
+### Logout
+
+```
+POST /api/auth/logout → Revoke refresh token in DB → Clear both cookies
+```
 
 ---
 
-## 🔒 Security Features
+## �️ Security Hardening
 
-| Feature | Implementation |
-|---------|---------------|
-| **Password Hashing** | bcrypt with 12 salt rounds |
-| **SQL Injection Prevention** | Parameterized queries only (`$1, $2, ...`) |
-| **HTTP Security Headers** | helmet middleware |
-| **Rate Limiting** | 10 login attempts per 15 minutes |
-| **CSRF Protection** | SameSite=strict cookies |
-| **XSS Protection** | HTTP-only cookies (no localStorage) |
-| **Data Encryption** | AES-256-CBC for task descriptions |
-| **RBAC** | Role-based middleware (`USER`, `ADMIN`) |
-| **Centralized Errors** | No stack traces leaked in production |
-| **No Hardcoded Secrets** | All secrets in environment variables |
+| Layer | Measure | Reasoning |
+|-------|---------|-----------|
+| **Transport** | HTTP-only + Secure cookies | Tokens inaccessible to JavaScript; HTTPS-only in production |
+| **CSRF** | SameSite=strict (dev) / none+secure (prod) | Prevents cross-site request forgery; `none` required for cross-domain deployment |
+| **XSS** | No localStorage, no tokens in response body | Even if XSS occurs, attacker cannot extract auth tokens |
+| **Brute Force** | Rate limiting (10 req/15min on login) | Slows credential stuffing attacks |
+| **SQL Injection** | Parameterized queries (`$1, $2, ...`) | User input never interpolated into SQL strings |
+| **Headers** | helmet middleware | Sets X-Content-Type-Options, X-Frame-Options, HSTS, etc. |
+| **Passwords** | bcrypt with 12 salt rounds | Intentionally slow hashing; resistant to rainbow tables |
+| **Data at Rest** | AES-256-CBC encryption | Task descriptions stored as hex ciphertext in DB |
+| **Token Storage** | Refresh tokens bcrypt-hashed in DB | Database breach doesn't expose usable tokens |
+| **Error Handling** | Centralized middleware | Stack traces hidden in production; consistent error format |
+| **Secrets** | Environment variables only | No hardcoded keys in source code |
 
 ---
 
-## 🔑 AES-256-CBC Encryption
-
-Task descriptions are encrypted at rest in the database.
+## 🔑 Encryption at Rest (AES-256-CBC)
 
 ```
-Create Task → encrypt(description) → stored as hex ciphertext in PostgreSQL
-Read Task   → decrypt(ciphertext) → plaintext returned to client
+Create/Update → encrypt(description) → hex ciphertext stored in PostgreSQL
+Read (any endpoint) → decrypt(ciphertext) → plaintext returned to client
 ```
 
-- **Algorithm:** AES-256-CBC
-- **Key:** 32-byte key from `AES_KEY` env var
-- **IV:** 16-byte IV from `AES_IV` env var
-- **Output:** Hex-encoded ciphertext
+| Parameter | Value |
+|-----------|-------|
+| Algorithm | AES-256-CBC |
+| Key | 32-byte value from `AES_KEY` env var |
+| IV | 16-byte value from `AES_IV` env var |
+| Output | Hex-encoded ciphertext |
 
-**Why?** If the database is breached, task descriptions are unreadable without the encryption key. This is **encryption at rest** — it does NOT replace HTTPS (encryption in transit).
+**Key design choice:** Encryption happens at the application layer, not the database layer. This makes it database-agnostic — works with Supabase, AWS RDS, or any PostgreSQL provider without vendor-specific encryption features.
+
+**What this protects against:** If someone accesses the database directly (SQL injection, backup theft, cloud console access), they see hex gibberish for descriptions. Without the AES key, the data is useless.
+
+**What this does NOT replace:** HTTPS (encryption in transit). AES protects data at rest, HTTPS protects data in motion. Both are necessary.
 
 ---
 
 ## 👥 Role-Based Access Control (RBAC)
 
-### Roles
+### Permission Matrix
 
-| Role | Permissions |
-|------|-------------|
-| `USER` | CRUD own tasks |
-| `ADMIN` | Everything USER can do + view all users, view/delete any task, promote/demote users |
+| Action | USER | ADMIN |
+|--------|:----:|:-----:|
+| Create/Read/Update/Delete own tasks | ✓ | ✓ |
+| View all users | ✗ | ✓ |
+| View all users' tasks | ✗ | ✓ |
+| Delete any user's task | ✗ | ✓ |
+| Promote/demote users | ✗ | ✓ |
 
 ### Middleware Chain
 
 ```
-Request → authenticate (verify JWT) → authorizeRoles("ADMIN") → controller
+Request → authenticate() → authorizeRoles("ADMIN") → controller
+            │                      │
+            └─ Verify JWT          └─ Check req.user.role
+               from cookie            against allowed roles
 ```
 
-### Adding New Roles
+### Extensibility
 
-To add a role like `MANAGER`:
+Adding a new role (e.g., `MANAGER`) requires:
 1. `ALTER TYPE user_role ADD VALUE 'MANAGER';` in PostgreSQL
 2. Use existing middleware: `authorizeRoles("ADMIN", "MANAGER")`
-3. No middleware code changes needed
+3. **Zero middleware code changes** — the system is designed for this
 
 ### First Admin Setup
 
 ```sql
--- Run in Supabase SQL Editor after registering your first user
+-- Register via the app, then promote in Supabase SQL Editor:
 UPDATE users SET role = 'ADMIN' WHERE email = 'your-email@example.com';
+-- Logout and login again to refresh the JWT with the new role
 ```
 
 After that, admins can promote other users via: `PATCH /api/admin/users/:id/role`
 
 ---
 
-## 📡 API Endpoints
+## 📡 API Reference
 
-### Auth Routes (`/api/auth`)
+### Auth (`/api/auth`)
 
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| `POST` | `/register` | ✗ | Register new user |
-| `POST` | `/login` | ✗ | Login (rate limited: 10/15min) |
-| `POST` | `/logout` | ✗ | Revoke tokens + clear cookies |
-| `POST` | `/refresh` | ✗ | Rotate refresh token |
-| `GET` | `/me` | ✓ | Get current user |
+| Method | Endpoint | Auth | Rate Limited | Description |
+|--------|----------|:----:|:------------:|-------------|
+| `POST` | `/register` | ✗ | ✗ | Create new account |
+| `POST` | `/login` | ✗ | ✓ (10/15min) | Authenticate + set cookies |
+| `POST` | `/logout` | ✗ | ✗ | Revoke token + clear cookies |
+| `POST` | `/refresh` | ✗ | ✗ | Rotate refresh token |
+| `GET` | `/me` | ✓ | ✗ | Current user profile |
 
-### Task Routes (`/api/tasks`) — All Protected
+### Tasks (`/api/tasks`) — Authenticated
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/` | Create task |
-| `GET` | `/?page=1&limit=10&status=pending&search=deploy` | List tasks (paginated, filtered) |
-| `GET` | `/:id` | Get single task |
-| `PUT` | `/:id` | Update task |
-| `DELETE` | `/:id` | Soft delete task |
+| `POST` | `/` | Create task (description encrypted) |
+| `GET` | `/?page=1&limit=10&status=pending&search=deploy` | Paginated + filtered list |
+| `GET` | `/:id` | Single task (description decrypted) |
+| `PUT` | `/:id` | Partial update (COALESCE pattern) |
+| `DELETE` | `/:id` | Soft delete (sets `deleted_at`) |
 
-### Admin Routes (`/api/admin`) — ADMIN Only
+### Admin (`/api/admin`) — ADMIN Only
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/users` | List all users |
-| `PATCH` | `/users/:id/role` | Update user role |
-| `GET` | `/tasks?page=1&limit=10&status=pending` | List all tasks (with user info) |
+| `PATCH` | `/users/:id/role` | Promote/demote user (self-protection) |
+| `GET` | `/tasks` | All tasks across all users (paginated) |
 | `DELETE` | `/tasks/:id` | Soft delete any task |
 
-### Utility
+### Health
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/health` | Health check |
+| `GET` | `/api/health` | Server status check |
 
 ---
 
 ## 🗄️ Database Schema
 
-### users
+### `users`
 
 | Column | Type | Constraints |
 |--------|------|-------------|
-| id | UUID | PK, auto-generated |
+| id | UUID | PK, `gen_random_uuid()` |
 | name | VARCHAR(100) | NOT NULL |
 | email | VARCHAR(255) | UNIQUE, NOT NULL |
 | password | VARCHAR(255) | NOT NULL (bcrypt hash) |
-| role | ENUM (USER, ADMIN) | DEFAULT 'USER' |
-| created_at | TIMESTAMP | DEFAULT NOW() |
+| role | ENUM(`USER`, `ADMIN`) | DEFAULT `USER` |
+| created_at | TIMESTAMP | DEFAULT `NOW()` |
 
-### tasks
+### `tasks`
 
 | Column | Type | Constraints |
 |--------|------|-------------|
-| id | UUID | PK, auto-generated |
+| id | UUID | PK, `gen_random_uuid()` |
 | title | VARCHAR(255) | NOT NULL |
-| description | TEXT | Encrypted (AES-256-CBC) |
-| status | ENUM (pending, in-progress, completed) | DEFAULT 'pending' |
-| user_id | UUID | FK → users(id), CASCADE |
-| deleted_at | TIMESTAMP | NULL (soft delete) |
-| created_at | TIMESTAMP | DEFAULT NOW() |
+| description | TEXT | **AES-256-CBC encrypted** |
+| status | ENUM(`pending`, `in-progress`, `completed`) | DEFAULT `pending` |
+| user_id | UUID | FK → `users(id)` ON DELETE CASCADE |
+| deleted_at | TIMESTAMP | NULL (soft delete marker) |
+| created_at | TIMESTAMP | DEFAULT `NOW()` |
 
-### refresh_tokens
+### `refresh_tokens`
 
 | Column | Type | Constraints |
 |--------|------|-------------|
-| id | UUID | PK, auto-generated |
-| user_id | UUID | FK → users(id), CASCADE |
-| token | TEXT | bcrypt hash of refresh token |
+| id | UUID | PK, `gen_random_uuid()` |
+| user_id | UUID | FK → `users(id)` ON DELETE CASCADE |
+| token | TEXT | **bcrypt hash** of refresh token |
 | expires_at | TIMESTAMP | NOT NULL |
-| created_at | TIMESTAMP | DEFAULT NOW() |
-| revoked | BOOLEAN | DEFAULT FALSE |
+| created_at | TIMESTAMP | DEFAULT `NOW()` |
+| revoked | BOOLEAN | DEFAULT `FALSE` |
 
 ---
 
-## 🖥️ Frontend Features
+## 🖥️ Frontend
 
-### Authentication
-- Login / Register forms with validation
-- Auth state managed via React Context
-- Route protection with loading spinner
-- Auto-redirect based on auth status
-- Logout clears cookies via API call
+### Authentication Flow
+- Login / Register with form validation and error handling
+- Auth state via React Context (`useAuth` hook)
+- `ProtectedRoute` component with loading spinner
+- Auto-redirect: authenticated → dashboard, unauthenticated → login
+- Logout calls API to revoke token + clear cookies
 
 ### Task Dashboard
-- **CRUD Operations** — Create, edit, delete tasks via modals
-- **Pagination** — Previous/Next with page metadata
-- **Search** — Debounced search (400ms) by title
-- **Filter** — Dropdown filter by status
-- **Empty States** — Meaningful messages when no tasks found
-- **Toast Notifications** — Success/error feedback
-- **Loading States** — Spinners during API calls
+- **Full CRUD** via modal forms (create, edit inline, soft delete with confirmation)
+- **Pagination** — Previous/Next with total count metadata
+- **Search** — Debounced input (400ms) hitting `?search=` query param
+- **Filter** — Status dropdown (All, Pending, In Progress, Completed)
+- **Toast notifications** — Auto-dismiss success/error feedback
+- **Loading states** — Spinners during every async operation
 
 ### Admin View
-- **Tab-based navigation** — "My Tasks" and "All Tasks (Admin)"
-- Admin task cards show **task owner's name and email**
-- Admin can **delete any user's task**
-- **Responsive** — Mobile-friendly tab toggle
+- Tab-based "My Tasks" / "All Tasks (Admin)" navigation
+- Admin cards display task owner's name and email
+- Admin can delete any user's task (with confirmation)
+- Responsive — mobile tab toggle, desktop sidebar
+
+---
+
+## ⚙️ Scalability & Extensibility
+
+| Aspect | Approach |
+|--------|----------|
+| **New roles** | Add to PostgreSQL enum + pass to `authorizeRoles()` — no middleware changes |
+| **Soft deletes** | Audit trail preserved; data recoverable; `deleted_at IS NULL` filter in queries |
+| **No ORM** | Parameterized `pg` queries — full SQL control, no abstraction leaks, transparent performance |
+| **DB indexing** | Indexes on `users(email)`, `tasks(user_id)`, `refresh_tokens(user_id)` support query performance at scale |
+| **Encryption** | Application-layer AES — works with any PostgreSQL provider (Supabase, RDS, self-hosted) |
+| **Pagination** | Limit + offset with total count — predictable performance with growing datasets |
+
+---
+
+## 🚀 Production Considerations
+
+| Concern | Implementation |
+|---------|---------------|
+| **Cookie security** | `httpOnly`, `secure` (HTTPS), `sameSite: none` for cross-domain deployment |
+| **Secrets management** | All keys/secrets in environment variables, never in source code |
+| **CORS** | Strict origin validation via `CLIENT_URL` env var — no wildcard origins |
+| **Error responses** | Centralized handler returns consistent JSON; stack traces hidden in production |
+| **Token lifecycle** | Short-lived access (15m), rotated refresh (7d), bcrypt-hashed storage |
+| **Cross-domain cookies** | `SameSite=none` + `Secure=true` for Vercel ↔ Render deployment |
 
 ---
 
@@ -305,21 +392,21 @@ After that, admins can promote other users via: `PATCH /api/admin/users/:id/role
 - PostgreSQL database (Supabase recommended)
 - npm
 
-### 1. Clone the Repository
+### 1. Clone
 
 ```bash
 git clone https://github.com/Rohit-Rathod95/task-management-system.git
 cd task-management-system
 ```
 
-### 2. Setup Backend
+### 2. Backend Setup
 
 ```bash
 cd backend
 npm install
 ```
 
-Create `.env` file:
+Create `.env`:
 
 ```env
 PORT=5000
@@ -333,19 +420,13 @@ NODE_ENV=development
 
 > ⚠️ `AES_KEY` must be exactly **32 bytes** and `AES_IV` must be exactly **16 bytes**.
 
-Run the schema in Supabase SQL Editor:
-
-```bash
-# Copy contents of backend/database/schema.sql and run in Supabase SQL Editor
-```
-
-Start the backend:
+Run schema in Supabase SQL Editor (copy contents of `backend/database/schema.sql`), then:
 
 ```bash
 npm run dev
 ```
 
-### 3. Setup Frontend
+### 3. Frontend Setup
 
 ```bash
 cd frontend/my-app
@@ -358,56 +439,44 @@ Create `.env.local`:
 NEXT_PUBLIC_API_URL=http://localhost:5000/api
 ```
 
-Start the frontend:
-
 ```bash
 npm run dev
 ```
 
 ### 4. Create First Admin
 
-Register a user through the app, then run in Supabase SQL Editor:
+Register via the app, then:
 
 ```sql
 UPDATE users SET role = 'ADMIN' WHERE email = 'your-email@example.com';
 ```
 
-Logout and login again to get the updated role in your JWT.
+Logout and login again for the new role to take effect.
 
 ---
 
-## 🧪 Testing the API
-
-### Register
+## 🧪 API Testing (curl)
 
 ```bash
+# Register
 curl -X POST http://localhost:5000/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"name":"John","email":"john@example.com","password":"Test@1234"}'
-```
 
-### Login
-
-```bash
+# Login (saves cookies)
 curl -X POST http://localhost:5000/api/auth/login \
   -H "Content-Type: application/json" \
   -c cookies.txt \
   -d '{"email":"john@example.com","password":"Test@1234"}'
-```
 
-### Create Task (with cookies)
-
-```bash
+# Create Task (uses cookies)
 curl -X POST http://localhost:5000/api/tasks \
   -H "Content-Type: application/json" \
   -b cookies.txt \
   -d '{"title":"Deploy app","description":"Deploy to production"}'
-```
 
-### Get Tasks (paginated + filtered)
-
-```bash
-curl "http://localhost:5000/api/tasks?page=1&limit=5&status=pending&search=deploy" \
+# Get Tasks (paginated + filtered)
+curl "http://localhost:5000/api/tasks?page=1&limit=5&status=pending" \
   -b cookies.txt
 ```
 
@@ -417,14 +486,14 @@ curl "http://localhost:5000/api/tasks?page=1&limit=5&status=pending&search=deplo
 
 | Decision | Rationale |
 |----------|-----------|
-| **HTTP-only cookies over localStorage** | Prevents XSS token theft |
-| **Refresh token rotation** | Prevents replay attacks; stolen tokens are single-use |
-| **bcrypt for token hashing** | DB breach doesn't expose usable tokens |
-| **Parameterized queries** | SQL injection prevention without ORM overhead |
-| **Soft deletes** | Data recovery possible; audit trail preserved |
-| **AES at application layer** | DB-agnostic; works with any PostgreSQL provider |
-| **COALESCE for partial updates** | Only updates fields sent in request body |
-| **Centralized error handler** | Consistent error responses; no leaked stack traces |
+| **HTTP-only cookies over localStorage** | Prevents XSS token theft — tokens never accessible to JavaScript |
+| **Refresh token rotation** | Stolen tokens are single-use; reuse triggers full session revocation |
+| **bcrypt for token hashing** | Database breach doesn't expose usable tokens |
+| **Parameterized queries (no ORM)** | SQL injection prevention with full query control and transparent performance |
+| **Soft deletes** | Data recovery possible; audit trail preserved for compliance |
+| **AES at application layer** | Database-agnostic encryption; portable across any PostgreSQL provider |
+| **COALESCE for partial updates** | Only overwrites fields explicitly sent in the request body |
+| **Centralized error handler** | Consistent error format; no leaked internals in production |
 
 ---
 
